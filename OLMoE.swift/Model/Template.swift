@@ -10,6 +10,14 @@ import Foundation
 import llama
 
 /// A structure that defines how to format conversations for different LLM architectures
+public enum ModelTemplateKind: String, Codable {
+    case olmoe
+    case chatML
+    case alpaca
+    case llama
+    case mistral
+}
+
 public struct Template {
     /// Represents prefix and suffix text to wrap around different message types
     public typealias Attachment = (prefix: String, suffix: String)
@@ -168,4 +176,21 @@ public struct Template {
         stopSequence: "</s>",
         systemPrompt: nil
     )
+}
+
+public extension Template {
+    static func from(kind: ModelTemplateKind, systemPrompt: String = "") -> Template {
+        switch kind {
+        case .olmoe:
+            return .OLMoE(systemPrompt)
+        case .chatML:
+            return .chatML(systemPrompt)
+        case .alpaca:
+            return .alpaca(systemPrompt)
+        case .llama:
+            return .llama(systemPrompt)
+        case .mistral:
+            return .mistral
+        }
+    }
 }

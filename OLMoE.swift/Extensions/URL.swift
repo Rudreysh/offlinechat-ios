@@ -32,7 +32,16 @@ extension URL {
 
         return url
     }
+    public static var attachmentsDirectory: URL {
+        let paths = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+        let url = paths[0].appendingPathComponent("Attachments")
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
     public var exists: Bool { FileManager.default.fileExists(atPath: path) }
+    public var fileSize: Int64 {
+        (try? resourceValues(forKeys: [.fileSizeKey]).fileSize).map { Int64($0) } ?? 0
+    }
     public func getData() async throws -> Data {
         let (data, response) = try await URLSession.shared.data(from: self)
         let statusCode = (response as! HTTPURLResponse).statusCode
@@ -55,6 +64,10 @@ extension URL {
             task.resume()
         }
         _ = observation
+        if FileManager.default.fileExists(atPath: destination.path) {
+            try FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
         try FileManager.default.moveItem(at: url, to: destination)
     }
 }

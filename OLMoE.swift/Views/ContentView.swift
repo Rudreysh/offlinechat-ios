@@ -8,11 +8,16 @@
 
 import SwiftUI
 import os
+import PhotosUI
+import llama_mtmd
 
 class Bot: LLM {
-    static let modelFileURL = URL.modelsDirectory.appendingPathComponent(AppConstants.Model.filename).appendingPathExtension("gguf")
+    static let defaultModelFileURL = URL.modelsDirectory.appendingPathComponent(AppConstants.Model.filename).appendingPathExtension("gguf")
+    let modelInfo: AppModel
 
-    convenience init() {
+    init(model: AppModel) throws {
+        self.modelInfo = model
+
         let deviceName = UIDevice.current.model
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "MMMM d, yyyy"
@@ -24,17 +29,34 @@ class Bot: LLM {
 
         let systemPrompt = "You are OLMoE (Open Language Mixture of Expert), a small language model running on \(deviceName). You have been developed at the Allen Institute for AI (Ai2) in Seattle, WA, USA. Today is \(currentDate). The time is \(currentTime)."
 
-        guard FileManager.default.fileExists(atPath: Bot.modelFileURL.path) else {
-            fatalError("Model file not found. Please download it first.")
+        guard model.localGGUFURL.exists else {
+            throw LLMError.modelNotFound
         }
 
-//        self.init(from: Bot.modelFileURL, template: .OLMoE(systemPrompt))
-        self.init(from: Bot.modelFileURL, template: .OLMoE())
+        print("Loading model: \(model.localGGUFURL.path)")
+        if model.supportsVision {
+            print("Projector path: \(model.localMMProjURL?.path ?? "none")")
+        }
+
+        let template = Template.from(kind: model.template, systemPrompt: systemPrompt)
+        super.init(
+            from: model.localGGUFURL.path,
+            stopSequence: template.stopSequence,
+            history: [],
+            seed: .random(in: .min ... .max),
+            topK: 40,
+            topP: 0.95,
+            temp: 0.8,
+            maxTokenCount: Int32(model.defaultContext)
+        )
+        self.preprocess = template.preprocess
+        self.template = template
     }
 }
 
 struct BotView: View {
     @StateObject var bot: Bot
+    let model: AppModel
     @State var input = ""
     @State private var isGenerating = false
     @State private var stopSubmitted = false
@@ -48,12 +70,16 @@ struct BotView: View {
     @FocusState private var isTextEditorFocused: Bool
     @Binding var showMetrics: Bool
     let disclaimerHandlers: DisclaimerHandlers
+    @State private var pendingAttachments: [ChatAttachment] = []
+    @State private var selectedPhotos: [PhotosPickerItem] = []
+    @State private var composerMode: ComposerMode = .chat
+    @State private var userAlertMessage: String?
 
     // Add new state for text sharing
     @State private var showTextShareSheet = false
 
     private var hasValidInput: Bool {
-        !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingAttachments.isEmpty
     }
 
     private var isInputDisabled: Bool {
@@ -68,10 +94,22 @@ struct BotView: View {
         bot.history.isEmpty && !isGenerating && bot.output.isEmpty
     }
 
-    init(_ bot: Bot, showMetrics: Binding<Bool>, disclaimerHandlers: DisclaimerHandlers) {
+    private var availableComposerModes: [ComposerMode] {
+        var modes: [ComposerMode] = [.chat]
+        if model.supportsOCR {
+            modes.append(.ocr)
+        }
+        if model.supportsVision {
+            modes.insert(.vision, at: 1)
+        }
+        return modes
+    }
+
+    init(_ bot: Bot, model: AppModel, showMetrics: Binding<Bool>, disclaimerHandlers: DisclaimerHandlers) {
         _bot = StateObject(wrappedValue: bot)
         _showMetrics = showMetrics
         self.disclaimerHandlers = disclaimerHandlers
+        self.model = model
     }
 
     func shouldShowScrollButton() -> Bool {
@@ -90,9 +128,54 @@ struct BotView: View {
         input = "" // Clear the input after sending
 
         // Add the user message to history immediately
-        bot.history.append(Chat(role: .user, content: originalInput))
+        bot.history.append(Chat(role: .user, content: originalInput, attachments: pendingAttachments))
+
         Task {
-            await bot.respond(to: originalInput)
+            let mode = composerMode
+            let attachments = pendingAttachments
+            pendingAttachments.removeAll()
+
+            if (mode == .vision || mode == .ocr) && attachments.isEmpty {
+                await MainActor.run {
+                    userAlertMessage = "Attach an image or document first."
+                    isGenerating = false
+                    stopSubmitted = false
+                }
+                return
+            }
+
+            if mode == .ocr {
+                let ocrText = await runOCR(for: attachments)
+                await MainActor.run {
+                    bot.history.append(Chat(role: .bot, content: ocrText.isEmpty ? "No text found." : ocrText))
+                    bot.setOutput(to: "")
+                    isGenerating = false
+                    stopSubmitted = false
+                }
+                return
+            }
+
+            if mode == .vision, model.supportsVision {
+                if !model.isVisionReady {
+                    await MainActor.run {
+                        userAlertMessage = LLMError.missingProjector.localizedDescription
+                        isGenerating = false
+                        stopSubmitted = false
+                    }
+                    return
+                }
+            } else if mode == .vision {
+                await MainActor.run {
+                    userAlertMessage = "Selected model does not support vision."
+                    isGenerating = false
+                    stopSubmitted = false
+                }
+                return
+            }
+
+            let prompt = await buildPrompt(input: originalInput, mode: mode, attachments: attachments)
+            await bot.respond(to: prompt)
+
             await MainActor.run {
                 bot.setOutput(to: "")
                 isGenerating = false
@@ -114,6 +197,7 @@ struct BotView: View {
             await bot.clearHistory()
             bot.setOutput(to: "")
             input = "" // Clear the input
+            pendingAttachments.removeAll()
             // Reset metrics when clearing chat history
             bot.metrics.reset()
         }
@@ -127,6 +211,8 @@ struct BotView: View {
 
         let header = """
         Conversation with OLMoE (Open Language Mixture of Expert)
+        Device: \(deviceName)
+        Shared: \(timestamp)
         ----------------------------------------
 
         """
@@ -144,6 +230,121 @@ struct BotView: View {
         """
 
         return header + conversation + footer
+    }
+
+    private func addDocumentAttachment(from url: URL) {
+        let ext = url.pathExtension.isEmpty ? "pdf" : url.pathExtension
+        let filename = "Doc-\(UUID().uuidString).\(ext)"
+        let destination = URL.attachmentsDirectory.appendingPathComponent(filename)
+        do {
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.copyItem(at: url, to: destination)
+            let attachment = ChatAttachment(
+                kind: .document,
+                url: destination,
+                filename: destination.lastPathComponent,
+                sizeBytes: destination.fileSize
+            )
+            pendingAttachments.append(attachment)
+        } catch {
+            userAlertMessage = "Failed to add document: \(error.localizedDescription)"
+        }
+    }
+
+    private func addPhotoAttachments(from items: [PhotosPickerItem]) async {
+        for item in items {
+            guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+            guard let image = UIImage(data: data) else { continue }
+            let filename = "Photo-\(UUID().uuidString).jpg"
+            let destination = URL.attachmentsDirectory.appendingPathComponent(filename)
+            if let jpgData = image.jpegData(compressionQuality: 0.9) {
+                try? jpgData.write(to: destination, options: [.atomic])
+            } else {
+                try? data.write(to: destination, options: [.atomic])
+            }
+            let attachment = ChatAttachment(
+                kind: .image,
+                url: destination,
+                filename: destination.lastPathComponent,
+                sizeBytes: destination.fileSize
+            )
+            pendingAttachments.append(attachment)
+        }
+        await MainActor.run {
+            selectedPhotos.removeAll()
+        }
+    }
+
+    private func runOCR(for attachments: [ChatAttachment]) async -> String {
+        var output: [String] = []
+        for attachment in attachments {
+            switch attachment.kind {
+            case .image:
+                if let image = attachment.image {
+                    let text = await OCRProcessor.recognizeText(in: image)
+                    if !text.isEmpty {
+                        output.append(text)
+                    }
+                }
+            case .document:
+                let text = await OCRProcessor.recognizeText(in: attachment.url)
+                if !text.isEmpty {
+                    output.append(text)
+                }
+            }
+        }
+        return output.joined(separator: "\n")
+    }
+
+    private func buildPrompt(input: String, mode: ComposerMode, attachments: [ChatAttachment]) async -> String {
+        guard !attachments.isEmpty else { return input }
+
+        if mode == .vision {
+            if llama_mtmd_is_available() {
+                print("Vision runtime available. Using image marker.")
+                return "<image>\n\(input)"
+            }
+            print("Vision runtime not available. Falling back to OCR context.")
+            let context = await attachmentContext(from: attachments)
+            return "Attached files (extracted context):\n\(context)\n\n\(input)"
+        }
+
+        if mode == .ocr {
+            let context = await attachmentContext(from: attachments)
+            return "Extracted text:\n\(context)\n\n\(input)"
+        }
+
+        return input
+    }
+
+    private func attachmentContext(from attachments: [ChatAttachment]) async -> String {
+        var lines: [String] = []
+        for attachment in attachments {
+            switch attachment.kind {
+            case .image:
+                let label = "[Image: \(attachment.filename)]"
+                var text = ""
+                if let image = attachment.image {
+                    text = await OCRProcessor.recognizeText(in: image)
+                }
+                if text.isEmpty {
+                    lines.append("\(label) (no OCR/labels available)")
+                } else {
+                    lines.append("\(label)\n\(text)")
+                }
+            case .document:
+                let label = "[Document: \(attachment.filename)]"
+                let text = await OCRProcessor.recognizeText(in: attachment.url)
+                if text.isEmpty {
+                    lines.append("\(label) (no OCR available)")
+                } else {
+                    lines.append("\(label)\n\(text)")
+                }
+            }
+        }
+        return lines.joined(separator: "\n\n")
     }
 
     func shareConversation() {
@@ -331,11 +532,21 @@ struct BotView: View {
                     input: $input,
                     isGenerating: $isGenerating,
                     stopSubmitted: $stopSubmitted,
+                    selectedPhotos: $selectedPhotos,
+                    composerMode: $composerMode,
                     isTextEditorFocused: $isTextEditorFocused,
+                    attachments: pendingAttachments,
+                    availableModes: availableComposerModes,
                     isInputDisabled: isInputDisabled,
                     hasValidInput: hasValidInput,
                     respond: respond,
-                    stop: stop
+                    stop: stop,
+                    onDocumentPicked: { url in
+                        addDocumentAttachment(from: url)
+                    },
+                    onRemoveAttachment: { attachment in
+                        pendingAttachments.removeAll { $0.id == attachment.id }
+                    }
                 )
             }
             .padding(12)
@@ -351,6 +562,14 @@ struct BotView: View {
         .gesture(TapGesture().onEnded({
             isTextEditorFocused = false
         }))
+        .onChange(of: selectedPhotos) { _, newItems in
+            Task { await addPhotoAttachments(from: newItems) }
+        }
+        .alert("Attachment Error", isPresented: Binding(get: { userAlertMessage != nil }, set: { if !$0 { userAlertMessage = nil } })) {
+            Button("OK", role: .cancel) { userAlertMessage = nil }
+        } message: {
+            Text(userAlertMessage ?? "")
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -390,46 +609,44 @@ struct ActivityViewController: UIViewControllerRepresentable {
 }
 
 struct ContentView: View {
-    /// A shared instance of the background download manager.
-    @StateObject private var downloadManager = BackgroundDownloadManager.shared
-
-    /// The state of the disclaimer handling.
     @StateObject private var disclaimerState = DisclaimerState()
+    @StateObject private var modelStore = ModelStore.shared
+    @StateObject private var downloader = ModelDownloader.shared
 
-    /// The bot instance used for conversation.
-    @State private var bot: Bot?
-
-    /// A flag indicating whether to show the info page.
     @State private var showInfoPage: Bool = false
-
-    /// A flag indicating whether the device is supported.
     @State private var isSupportedDevice: Bool = isDeviceSupported()
-
-    /// A flag indicating whether to use mocked model responses.
     @State private var useMockedModelResponse: Bool = false
-
-    /// A flag indicating whether to show metrics.
     @State private var showMetrics: Bool = false
+    @State private var selectionError: String?
+    @State private var path: [String] = []
 
-    /// Logger for tracking events in the ContentView.
     let logger = Logger(subsystem: "com.allenai.olmoe", category: "ContentView")
 
     public var body: some View {
         ZStack {
-            NavigationStack {
+            NavigationStack(path: $path) {
                 VStack {
                     if !isSupportedDevice && !useMockedModelResponse {
                         UnsupportedDeviceView(
                             proceedAnyway: { isSupportedDevice = true },
                             proceedMocked: {
-                                bot?.loopBackTestResponse = true
                                 useMockedModelResponse = true
                             }
                         )
-                    } else if downloadManager.isModelReady, let bot = bot {
-                        BotView(bot,
-                               showMetrics: $showMetrics,
-                               disclaimerHandlers: DisclaimerHandlers(
+                    } else {
+                        ModelLibraryView(modelStore: modelStore, downloader: downloader, onSelectModel: { model in
+                            guard model.isDownloaded else {
+                                selectionError = "Download the model before starting a chat."
+                                return
+                            }
+                            modelStore.setSelectedModel(model)
+                            path.append(model.id)
+                        }, showInfoPage: $showInfoPage, showMetrics: $showMetrics)
+                    }
+                }
+                .navigationDestination(for: String.self) { modelID in
+                    if let model = modelStore.model(withId: modelID) {
+                        ChatScreen(model: model, modelStore: modelStore, navigationPath: $path, showMetrics: $showMetrics, useMockedModelResponse: useMockedModelResponse, disclaimerHandlers: DisclaimerHandlers(
                             setActiveDisclaimer: { self.disclaimerState.activeDisclaimer = $0 },
                             setAllowOutsideTapDismiss: { self.disclaimerState.allowOutsideTapDismiss = $0 },
                             setCancelAction: { self.disclaimerState.onCancel = $0 },
@@ -437,34 +654,10 @@ struct ContentView: View {
                             setShowDisclaimerPage: { self.disclaimerState.showDisclaimerPage = $0 }
                         ))
                     } else {
-                        ModelDownloadView()
+                        Text("Model not found.")
                     }
-                }
-                .onChange(of: downloadManager.isModelReady) { newValue in
-                    if newValue && bot == nil {
-                        initializeBot()
-                    }
-                }
-                .onAppear {
-                    checkModelAndInitializeBot()
                 }
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    AppToolbar(
-                        leadingContent: {
-                            HStack(alignment: .bottom, spacing: 20) {
-                                // Info button
-                                InfoButton(action: { showInfoPage = true })
-
-                                // Metrics toggle button - now using the MetricsButton component
-                                MetricsButton(
-                                    action: { showMetrics.toggle() },
-                                    isShowing: showMetrics
-                                )
-                            }
-                        }
-                    )
-                }
             }
             .onAppear {
                 disclaimerState.showInitialDisclaimer()
@@ -499,26 +692,11 @@ struct ContentView: View {
                 }
                 .interactiveDismissDisabled(!disclaimerState.allowOutsideTapDismiss)
             }
-        }
-    }
-
-    /// Checks if the model exists before initializing the bot
-    private func checkModelAndInitializeBot() {
-        if FileManager.default.fileExists(atPath: Bot.modelFileURL.path) {
-            downloadManager.isModelReady = true
-            initializeBot()
-        } else {
-            downloadManager.isModelReady = false
-        }
-    }
-
-    /// Initializes the bot instance and sets the loopback test response flag.
-    private func initializeBot() {
-        do {
-            bot = try Bot()
-            bot?.loopBackTestResponse = useMockedModelResponse
-        } catch {
-            print("Error initializing bot: \(error)")
+            .alert("Model", isPresented: Binding(get: { selectionError != nil }, set: { if !$0 { selectionError = nil } })) {
+                Button("OK", role: .cancel) { selectionError = nil }
+            } message: {
+                Text(selectionError ?? "")
+            }
         }
     }
 }

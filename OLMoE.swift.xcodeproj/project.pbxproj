@@ -7,6 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		18636D3BC4FF43B08D21AA2E /* LLMError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9E7E91FC9A44CD8EC296C3 /* LLMError.swift */; };
+		884F9154DE614C3F94A19E11 /* OCRProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 395FD3948F35418287E897E4 /* OCRProcessor.swift */; };
+		BE83FF0834314341BB812C03 /* VisionPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9BFA41F9BE49A7BD2CB943 /* VisionPipeline.swift */; };
+		C3A629B441644B9181CF5ECC /* ChatAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 962B5DD75B58415BA2F3A8F7 /* ChatAttachment.swift */; };
+		C927A5F4D24D4F729B18E282 /* ComposerMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46A4006039FA4C88963B3CF7 /* ComposerMode.swift */; };
+		D8793AD354AE498C922328A8 /* ModelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C19B33097D427792E8ECAD /* ModelStore.swift */; };
+		FE0F87B3789E43149B588219 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B23F4916E04173A6F0F1ED /* AppModel.swift */; };
+		FED8C19E04E6422F9DAC9AC0 /* ModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 525AEA25E2FD43C381FA11A7 /* ModelDownloader.swift */; };
 		48779B152D80A17200C446E8 /* HighlightSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 48779B142D80A17200C446E8 /* HighlightSwift */; };
 		4885754D2D77756600F7A36F /* InferenceMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4885754C2D77756300F7A36F /* InferenceMetrics.swift */; };
 		48952DF02D4D69D400476373 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 48952DEF2D4D69D400476373 /* MarkdownUI */; };
@@ -32,6 +40,14 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		1B9E7E91FC9A44CD8EC296C3 /* LLMError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMError.swift; sourceTree = "<group>"; };
+		36B23F4916E04173A6F0F1ED /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		395FD3948F35418287E897E4 /* OCRProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRProcessor.swift; sourceTree = "<group>"; };
+		46A4006039FA4C88963B3CF7 /* ComposerMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposerMode.swift; sourceTree = "<group>"; };
+		525AEA25E2FD43C381FA11A7 /* ModelDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloader.swift; sourceTree = "<group>"; };
+		79C19B33097D427792E8ECAD /* ModelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelStore.swift; sourceTree = "<group>"; };
+		7D9BFA41F9BE49A7BD2CB943 /* VisionPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionPipeline.swift; sourceTree = "<group>"; };
+		962B5DD75B58415BA2F3A8F7 /* ChatAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatAttachment.swift; sourceTree = "<group>"; };
 		48194C372D14D7C500E76532 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		4877E8992D7A4DB200C446E8 /* OLMoE_swift_macCatalyst.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OLMoE_swift_macCatalyst.entitlements; sourceTree = "<group>"; };
 		4885754C2D77756300F7A36F /* InferenceMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceMetrics.swift; sourceTree = "<group>"; };
@@ -137,15 +153,23 @@
 		B26FDB402CEAD47700E1D57C /* Model */ = {
 			isa = PBXGroup;
 			children = (
+				36B23F4916E04173A6F0F1ED /* AppModel.swift */,
+				962B5DD75B58415BA2F3A8F7 /* ChatAttachment.swift */,
+				46A4006039FA4C88963B3CF7 /* ComposerMode.swift */,
 				4885754C2D77756300F7A36F /* InferenceMetrics.swift */,
 				48E37C1F2D02715B0030C57C /* KeyboardResponder.swift */,
 				48B806342CF54D9600E1CC0A /* LambdaResponseModel.swift */,
+				1B9E7E91FC9A44CD8EC296C3 /* LLMError.swift */,
 				489FD75B2CF13E4E0011E908 /* AttestManager.swift */,
 				A01180002C990F7600035007 /* LLM.swift */,
+				525AEA25E2FD43C381FA11A7 /* ModelDownloader.swift */,
+				79C19B33097D427792E8ECAD /* ModelStore.swift */,
 				B26FDB5D2CEAD5CB00E1D57C /* Model.swift */,
 				B26FDB5B2CEAD5C400E1D57C /* Context.swift */,
+				395FD3948F35418287E897E4 /* OCRProcessor.swift */,
 				B26FDB512CEAD54C00E1D57C /* Role.swift */,
 				B26FDB4F2CEAD54400E1D57C /* Template.swift */,
+				7D9BFA41F9BE49A7BD2CB943 /* VisionPipeline.swift */,
 				B26FDB4D2CEAD53E00E1D57C /* Quantization.swift */,
 				B26FDB4B2CEAD53700E1D57C /* HuggingFaceError.swift */,
 				B26FDB492CEAD53000E1D57C /* HuggingFaceModel.swift */,
@@ -246,17 +270,25 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FE0F87B3789E43149B588219 /* AppModel.swift in Sources */,
 				489FD75C2CF13E4E0011E908 /* AttestManager.swift in Sources */,
+				C3A629B441644B9181CF5ECC /* ChatAttachment.swift in Sources */,
+				C927A5F4D24D4F729B18E282 /* ComposerMode.swift in Sources */,
 				B26FDB4C2CEAD53700E1D57C /* HuggingFaceError.swift in Sources */,
 				B26FDB522CEAD54C00E1D57C /* Role.swift in Sources */,
 				B26FDB5C2CEAD5C400E1D57C /* Context.swift in Sources */,
 				A046603D2CA3FAFA007BD14C /* Configuration.swift in Sources */,
 				A01180012C990F7600035007 /* LLM.swift in Sources */,
+				18636D3BC4FF43B08D21AA2E /* LLMError.swift in Sources */,
+				FED8C19E04E6422F9DAC9AC0 /* ModelDownloader.swift in Sources */,
 				B26FDB5E2CEAD5CB00E1D57C /* Model.swift in Sources */,
+				D8793AD354AE498C922328A8 /* ModelStore.swift in Sources */,
+				884F9154DE614C3F94A19E11 /* OCRProcessor.swift in Sources */,
 				4885754D2D77756600F7A36F /* InferenceMetrics.swift in Sources */,
 				A0117FEC2C990EAB00035007 /* OLMoE_swiftApp.swift in Sources */,
 				B26FDB502CEAD54400E1D57C /* Template.swift in Sources */,
 				B26FDB4E2CEAD53E00E1D57C /* Quantization.swift in Sources */,
+				BE83FF0834314341BB812C03 /* VisionPipeline.swift in Sources */,
 				B26FDB4A2CEAD53000E1D57C /* HuggingFaceModel.swift in Sources */,
 				48E37C202D0271610030C57C /* KeyboardResponder.swift in Sources */,
 				48B806352CF54D9F00E1CC0A /* LambdaResponseModel.swift in Sources */,

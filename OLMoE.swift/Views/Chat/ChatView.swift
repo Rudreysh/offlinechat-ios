@@ -11,20 +11,60 @@ import MarkdownUI
 
 public struct UserChatBubble: View {
     var text: String
+    var attachments: [ChatAttachment]
     var maxWidth: CGFloat
 
     public var body: some View {
         HStack(alignment: .top) {
             Spacer()
-            Text(text.trimmingCharacters(in: .whitespacesAndNewlines))
-                .padding(.vertical, 12)
-                .padding(.horizontal, 20)
-                .background(Color("Surface"))
-                .cornerRadius(24)
-                .frame(maxWidth: maxWidth * 0.75, alignment: .trailing)
-                .font(.body())
-                .textSelection(.enabled)
+            VStack(alignment: .trailing, spacing: 8) {
+                if !attachments.isEmpty {
+                    AttachmentPreviewRow(attachments: attachments, maxWidth: maxWidth)
+                }
+                Text(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                    .font(.body())
+                    .textSelection(.enabled)
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 20)
+            .background(Color("Surface"))
+            .cornerRadius(24)
+            .frame(maxWidth: maxWidth * 0.75, alignment: .trailing)
         }
+    }
+}
+
+private struct AttachmentPreviewRow: View {
+    let attachments: [ChatAttachment]
+    let maxWidth: CGFloat
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(attachments) { attachment in
+                switch attachment.kind {
+                case .image:
+                    if let image = attachment.image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 120, height: 80)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                case .document:
+                    HStack(spacing: 6) {
+                        Image(systemName: "doc.text.fill")
+                        Text(attachment.filename)
+                            .lineLimit(1)
+                    }
+                    .font(.caption)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color("Surface").opacity(0.7))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+        .frame(maxWidth: maxWidth * 0.7, alignment: .trailing)
     }
 }
 
@@ -170,7 +210,7 @@ public struct ChatView: View {
         Group {
             switch chat.role {
                 case .user:
-                    UserChatBubble(text: chat.content, maxWidth: parentWidth)
+                    UserChatBubble(text: chat.content, attachments: chat.attachments, maxWidth: parentWidth)
                         .id(chat.id)
                 case .bot:
                     BotChatBubble(text: chat.content, maxWidth: parentWidth)
@@ -395,5 +435,5 @@ public struct ChatView: View {
 }
 
 #Preview("UserChatBubble") {
-    UserChatBubble(text: "Hello Ai, please help me with your knowledge.", maxWidth: UIScreen.main.bounds.width)
+    UserChatBubble(text: "Hello Ai, please help me with your knowledge.", attachments: [], maxWidth: UIScreen.main.bounds.width)
 }

@@ -9,11 +9,13 @@ public struct Chat: Identifiable, Equatable {
     public var id: UUID? // Optional unique identifier
     public var role: Role
     public var content: String
+    public var attachments: [ChatAttachment]
 
-    public init(id: UUID? = UUID(), role: Role, content: String) {
+    public init(id: UUID? = UUID(), role: Role, content: String, attachments: [ChatAttachment] = []) {
         self.id = id
         self.role = role
         self.content = content
+        self.attachments = attachments
     }
 }
 
@@ -112,6 +114,10 @@ open class LLM: ObservableObject {
     private var updateProgress: (Double) -> Void = { _ in }
     private var nPast: Int32 = 0 // Track number of tokens processed
     private var inputTokenCount: Int32 = 0
+    private let filteredTokenFragments = [
+        "<|im_start|>", "<|im_end|>", "<|endoftext|>", "</s>",
+        "<im_start", "<im_end", "<image", "<|image|>"
+    ]
 
     public init(
         from path: String,
@@ -296,6 +302,9 @@ open class LLM: ObservableObject {
         guard token != model.endToken else { return false }
 
         let word = decode(token) /// Decode the token directly
+        if shouldFilterToken(word) {
+            return true
+        }
 
         guard let stopSequence else {
             output.yield(word)
@@ -331,6 +340,13 @@ open class LLM: ObservableObject {
             output.yield(found ? String(cString: letters + [0]) : word)
         }
         return true
+    }
+
+    private func shouldFilterToken(_ word: String) -> Bool {
+        for fragment in filteredTokenFragments where word.contains(fragment) {
+            return true
+        }
+        return false
     }
 
     @InferenceActor
@@ -535,5 +551,3 @@ extension LLM {
         self.nPast = (llama_memory_seq_pos_max(llama_get_memory(self.context.pointer), 0) + 1) + beginningOfSequenceOffset
     }
 }
-
-

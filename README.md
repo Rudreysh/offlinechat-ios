@@ -106,3 +106,28 @@ This project relies on the following open-source libraries, each licensed under 
 - **Repository:** [HighlightSwift](https://github.com/appstefan/HighlightSwift)
 
 For more details on each license, visit the respective repositories linked above.
+
+## Custom models, downloads, and attachments
+
+The app now supports multiple models (text + vision), custom URLs, and local imports.
+
+**Add a custom model URL**
+1. Open the app → Models.
+2. Tap **Add Custom**.
+3. Provide a display name and a direct `.gguf` URL.
+4. (Vision models) Add the matching `mmproj-*.gguf` URL.
+5. Save, then download from the model list.
+
+**Import a local GGUF**
+1. Open the app → Models.
+2. Tap **Import GGUF** and select a `.gguf` file from Files.
+3. The file is copied into the app’s model store and can be selected immediately.
+
+**Where models are stored**
+- `Application Support/Models/<model_id>/model.gguf`
+- `Application Support/Models/<model_id>/mmproj-*.gguf` (vision only)
+
+**Attachments + OCR**
+- Attach images or PDFs using the paperclip/photo buttons in chat.
+- OCR mode runs on-device and returns extracted text.
+- Vision mode requires both a model GGUF and its projector (mmproj) file.

@@ -92,7 +92,7 @@ class BackgroundDownloadManager: NSObject, ObservableObject, URLSessionDownloadD
     ///   - downloadTask: The download task that completed.
     ///   - location: The temporary location of the downloaded file.
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        let destination = Bot.modelFileURL
+        let destination = Bot.defaultModelFileURL
 
         do {
             if FileManager.default.fileExists(atPath: destination.path) {
@@ -165,7 +165,7 @@ class BackgroundDownloadManager: NSObject, ObservableObject, URLSessionDownloadD
     /// Deletes the downloaded model file, marking it as not ready.
     func flushModel() {
         do {
-            try FileManager.default.removeItem(at: Bot.modelFileURL)
+            try FileManager.default.removeItem(at: Bot.defaultModelFileURL)
             isModelReady = false
         } catch {
             downloadError = "Failed to flush model: \(error.localizedDescription)"
@@ -285,7 +285,7 @@ struct ModelDownloadView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
         .onAppear {
-            if FileManager.default.fileExists(atPath: Bot.modelFileURL.path) {
+            if FileManager.default.fileExists(atPath: Bot.defaultModelFileURL.path) {
                 downloadManager.isModelReady = true
             } else {
                 // Model file doesn't exist, make sure isModelReady is false
