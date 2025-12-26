@@ -158,7 +158,19 @@ struct BotView: View {
             if mode == .vision, model.supportsVision {
                 if !model.isVisionReady {
                     await MainActor.run {
-                        userAlertMessage = LLMError.missingProjector.localizedDescription
+                        let message = LLMError.missingProjector.localizedDescription
+                        userAlertMessage = message
+                        bot.history.append(Chat(role: .bot, content: message))
+                        isGenerating = false
+                        stopSubmitted = false
+                    }
+                    return
+                }
+                if !llama_mtmd_is_available() {
+                    await MainActor.run {
+                        let message = "Vision runtime is not available. Install a llama.cpp build with mtmd support or use OCR mode."
+                        userAlertMessage = message
+                        bot.history.append(Chat(role: .bot, content: message))
                         isGenerating = false
                         stopSubmitted = false
                     }

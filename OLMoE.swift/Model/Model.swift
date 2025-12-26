@@ -74,7 +74,7 @@ extension Model {
     /// - Returns: Array of token IDs representing the encoded text
     /// - Note: Automatically handles BOS token addition and logs the resulting tokens for debugging
     public func encode(_ text: borrowing String) -> [Token] {
-        let addBOS = true
+        let addBOS = shouldAddBOS()
         let count = Int32(text.cString(using: .utf8)!.count)
         var tokenCount = count + 1
         let cTokens = UnsafeMutablePointer<llama_token>.allocate(capacity: Int(tokenCount)); defer { cTokens.deallocate() }

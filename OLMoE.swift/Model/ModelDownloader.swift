@@ -28,6 +28,8 @@ public final class ModelDownloader: ObservableObject {
     public static let shared = ModelDownloader()
 
     @Published public private(set) var states: [String: ModelDownloadState] = [:]
+    private var activeTasks: [String: URLSessionDownloadTask] = [:]
+    private let session: URLSession = .shared
 
     public func state(for model: AppModel) -> ModelDownloadState {
         states[model.id] ?? ModelDownloadState()
@@ -52,12 +54,7 @@ public final class ModelDownloader: ObservableObject {
 
             for (index, artifact) in artifacts.enumerated() {
                 let baseProgress = Double(index) / Double(artifacts.count)
-                try await artifact.url.downloadData(to: artifact.destination) { [weak self] progress in
-                    Task { @MainActor in
-                        let overall = baseProgress + (progress / Double(artifacts.count))
-                        self?.setState(for: model.id, isDownloading: true, progress: overall)
-                    }
-                }
+                try await downloadArtifact(artifact, modelID: model.id, baseProgress: baseProgress, totalArtifacts: artifacts.count)
                 if artifact.destination.fileSize < 1_000_000 {
                     throw NSError(domain: "ModelDownloader", code: 1, userInfo: [NSLocalizedDescriptionKey: "Downloaded file is unexpectedly small."])
                 }
@@ -68,6 +65,12 @@ public final class ModelDownloader: ObservableObject {
         } catch {
             setState(for: model.id, isDownloading: false, progress: 0, error: error.localizedDescription)
         }
+    }
+
+    public func cancelDownload(for model: AppModel) {
+        activeTasks[model.id]?.cancel()
+        activeTasks[model.id] = nil
+        setState(for: model.id, isDownloading: false, progress: 0, error: "Download canceled.")
     }
 
     public func deleteLocalFiles(for model: AppModel) {
@@ -100,6 +103,47 @@ public final class ModelDownloader: ObservableObject {
         if let progress { state.progress = progress }
         state.error = error
         states[modelID] = state
+    }
+
+    private func downloadArtifact(_ artifact: ModelArtifact, modelID: String, baseProgress: Double, totalArtifacts: Int) async throws {
+        let url = artifact.url
+        let destination = artifact.destination
+
+        if FileManager.default.fileExists(atPath: destination.path) {
+            try FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let task = session.downloadTask(with: url) { tempURL, response, error in
+                defer { self.activeTasks[modelID] = nil }
+                if let error {
+                    return continuation.resume(throwing: error)
+                }
+                guard let tempURL else {
+                    return continuation.resume(throwing: HuggingFaceError.urlIsNilForSomeReason)
+                }
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode / 100 != 2 {
+                    return continuation.resume(throwing: HuggingFaceError.network(statusCode: httpResponse.statusCode))
+                }
+                do {
+                    try FileManager.default.moveItem(at: tempURL, to: destination)
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+
+            self.activeTasks[modelID] = task
+            let observation = task.progress.observe(\.fractionCompleted) { progress, _ in
+                Task { @MainActor in
+                    let overall = baseProgress + (progress.fractionCompleted / Double(totalArtifacts))
+                    self.setState(for: modelID, isDownloading: true, progress: overall)
+                }
+            }
+            _ = observation
+            task.resume()
+        }
     }
 }
 

@@ -273,6 +273,10 @@ private struct ModelRowView: View {
                     Button("Edit") { onEditModel(model) }
                         .buttonStyle(.bordered)
                 }
+                if state.isDownloading {
+                    Button("Cancel") { downloader.cancelDownload(for: model) }
+                        .buttonStyle(.bordered)
+                }
             }
         }
         .padding(.vertical, 6)

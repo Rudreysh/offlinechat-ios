@@ -12,9 +12,12 @@ import llama
 /// A structure that defines how to format conversations for different LLM architectures
 public enum ModelTemplateKind: String, Codable {
     case olmoe
+    case plain
     case chatML
     case alpaca
     case llama
+    case llamaNoStop
+    case gemma
     case mistral
 }
 
@@ -169,6 +172,18 @@ public struct Template {
         )
     }
 
+    /// LLaMA-style template without stop sequence (prevents early stop on some chat models)
+    public static func llamaNoStop(_ systemPrompt: String? = nil) -> Template {
+        return Template(
+            prefix: "[INST] ",
+            system: ("<<SYS>>\n", "\n<</SYS>>\n\n"),
+            user: ("", " [/INST]"),
+            bot: (" ", "</s><s>[INST] "),
+            stopSequence: nil,
+            systemPrompt: systemPrompt,
+            shouldDropLast: true
+        )
+    }
     /// Template configured for Mistral-style models
     public static let mistral = Template(
         user: ("[INST] ", " [/INST]"),
@@ -176,6 +191,26 @@ public struct Template {
         stopSequence: "</s>",
         systemPrompt: nil
     )
+
+    /// Template for plain completion models (no wrappers, no stop sequence)
+    public static let plain = Template(
+        system: ("", ""),
+        user: ("", ""),
+        bot: ("", ""),
+        stopSequence: nil,
+        systemPrompt: nil
+    )
+
+    /// Template configured for Gemma-style chat
+    public static func gemma(_ systemPrompt: String? = nil) -> Template {
+        return Template(
+            system: ("<start_of_turn>system\n", "<end_of_turn>\n"),
+            user: ("<start_of_turn>user\n", "<end_of_turn>\n"),
+            bot: ("<start_of_turn>model\n", "<end_of_turn>\n"),
+            stopSequence: "<end_of_turn>",
+            systemPrompt: systemPrompt
+        )
+    }
 }
 
 public extension Template {
@@ -183,12 +218,18 @@ public extension Template {
         switch kind {
         case .olmoe:
             return .OLMoE(systemPrompt)
+        case .plain:
+            return .plain
         case .chatML:
             return .chatML(systemPrompt)
         case .alpaca:
             return .alpaca(systemPrompt)
         case .llama:
             return .llama(systemPrompt)
+        case .llamaNoStop:
+            return .llamaNoStop(systemPrompt)
+        case .gemma:
+            return .gemma(systemPrompt)
         case .mistral:
             return .mistral
         }

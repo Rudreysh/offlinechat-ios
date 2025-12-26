@@ -461,8 +461,9 @@ open class LLM: ObservableObject {
         await performInference(to: input) { [self] response in
             await setOutput(to: "")
             for await responseDelta in response {
-                update(responseDelta)
-                await setOutput(to: output + responseDelta)
+                let sanitized = sanitizeModelOutput(responseDelta)
+                update(sanitized)
+                await setOutput(to: sanitizeModelOutput(output + sanitized))
             }
             update(nil)
             let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -473,6 +474,17 @@ open class LLM: ObservableObject {
             await setOutput(to: trimmedOutput.isEmpty ? "..." : trimmedOutput)
             return output
         }
+    }
+
+    private func sanitizeModelOutput(_ text: String) -> String {
+        let patterns = [
+            "<|im_start", "<|im_end", "<im_start", "<im_end", "<image", "<|image", "<|vision"
+        ]
+        var sanitized = text
+        for pattern in patterns {
+            sanitized = sanitized.replacingOccurrences(of: pattern, with: "")
+        }
+        return sanitized
     }
 
     /// If the model fails to produce a response (empty output), remove the last user input’s tokens

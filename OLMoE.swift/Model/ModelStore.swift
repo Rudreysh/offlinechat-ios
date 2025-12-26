@@ -100,22 +100,22 @@ public final class ModelStore: ObservableObject {
                 supportsVision: false,
                 supportsOCR: true,
                 defaultContext: 2048,
-                template: .chatML,
+                template: .llamaNoStop,
                 source: .builtIn,
                 sizeHintMB: 700
             ),
             AppModel(
-                id: "gemma-2b-it",
-                displayName: "Gemma 2B (Instruct)",
+                id: "gemma-3-270m",
+                displayName: "Gemma 3 270M",
                 kind: .text,
-                ggufURL: "https://huggingface.co/ggml-org/gemma-2b-it-GGUF/resolve/main/gemma-2b-it-Q4_K_M.gguf?download=true",
-                ggufFilename: "gemma-2b-it-Q4_K_M.gguf",
+                ggufURL: "https://huggingface.co/ggml-org/gemma-3-270m-GGUF/resolve/main/gemma-3-270m-Q8_0.gguf?download=true",
+                ggufFilename: "gemma-3-270m-Q8_0.gguf",
                 supportsVision: false,
                 supportsOCR: true,
-                defaultContext: 4096,
-                template: .chatML,
+                defaultContext: 2048,
+                template: .plain,
                 source: .builtIn,
-                sizeHintMB: 1500
+                sizeHintMB: 350
             ),
             AppModel(
                 id: "smolvlm2-2.2b",
@@ -148,6 +148,21 @@ public final class ModelStore: ObservableObject {
                 sizeHintMB: 2200
             ),
             AppModel(
+                id: "qwen2-vl-2b-q8-tensorblock",
+                displayName: "Qwen2-VL 2B (Vision, Q8_0)",
+                kind: .vision,
+                ggufURL: "https://huggingface.co/tensorblock/Qwen2-VL-2B-GGUF/resolve/main/Qwen2-VL-2B-Q8_0.gguf?download=true",
+                mmprojURL: nil,
+                ggufFilename: "Qwen2-VL-2B-Q8_0.gguf",
+                mmprojFilename: nil,
+                supportsVision: true,
+                supportsOCR: true,
+                defaultContext: 8192,
+                template: .chatML,
+                source: .builtIn,
+                sizeHintMB: 3600
+            ),
+            AppModel(
                 id: "qwen2.5-vl-3b",
                 displayName: "Qwen2.5-VL 3B (Vision)",
                 kind: .vision,
@@ -161,6 +176,22 @@ public final class ModelStore: ObservableObject {
                 template: .chatML,
                 source: .builtIn,
                 sizeHintMB: 3300
+            )
+            ,
+            AppModel(
+                id: "gemma-3-4b-it",
+                displayName: "Gemma 3 4B (Vision)",
+                kind: .vision,
+                ggufURL: "https://huggingface.co/ggml-org/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf?download=true",
+                mmprojURL: "https://huggingface.co/ggml-org/gemma-3-4b-it-GGUF/resolve/main/mmproj-model-f16.gguf?download=true",
+                ggufFilename: "gemma-3-4b-it-Q4_K_M.gguf",
+                mmprojFilename: "mmproj-model-f16.gguf",
+                supportsVision: true,
+                supportsOCR: true,
+                defaultContext: 8192,
+                template: .chatML,
+                source: .builtIn,
+                sizeHintMB: 2490
             )
         ]
     }
