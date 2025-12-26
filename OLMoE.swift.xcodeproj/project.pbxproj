@@ -15,10 +15,10 @@
 		48B806352CF54D9F00E1CC0A /* LambdaResponseModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48B806342CF54D9600E1CC0A /* LambdaResponseModel.swift */; };
 		48E37C202D0271610030C57C /* KeyboardResponder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E37C1F2D02715B0030C57C /* KeyboardResponder.swift */; };
 		58A7F8BC2D4C16F20041AA70 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = 58A7F8BB2D4C16F20041AA70 /* LICENSE */; };
+		967E7AE72EFDC9840060F3D8 /* llama in Frameworks */ = {isa = PBXBuildFile; productRef = 967E7AE62EFDC9840060F3D8 /* llama */; };
 		A0117FEC2C990EAB00035007 /* OLMoE_swiftApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0117FEB2C990EAB00035007 /* OLMoE_swiftApp.swift */; };
 		A0117FF02C990EAC00035007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A0117FEF2C990EAC00035007 /* Assets.xcassets */; };
 		A0117FF42C990EAC00035007 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A0117FF32C990EAC00035007 /* Preview Assets.xcassets */; };
-		A0117FFF2C990F5600035007 /* llama in Frameworks */ = {isa = PBXBuildFile; productRef = A0117FFE2C990F5600035007 /* llama */; };
 		A01180012C990F7600035007 /* LLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01180002C990F7600035007 /* LLM.swift */; };
 		A046603D2CA3FAFA007BD14C /* Configuration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A046603C2CA3FAFA007BD14C /* Configuration.swift */; };
 		A046603F2CA400D2007BD14C /* AppInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = A046603E2CA400D2007BD14C /* AppInfo.swift */; };
@@ -74,8 +74,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				967E7AE72EFDC9840060F3D8 /* llama in Frameworks */,
 				48779B152D80A17200C446E8 /* HighlightSwift in Frameworks */,
-				A0117FFF2C990F5600035007 /* llama in Frameworks */,
 				48952DF02D4D69D400476373 /* MarkdownUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -178,9 +178,9 @@
 			);
 			name = OLMoE.swift;
 			packageProductDependencies = (
-				A0117FFE2C990F5600035007 /* llama */,
 				48952DEF2D4D69D400476373 /* MarkdownUI */,
 				48779B142D80A17200C446E8 /* HighlightSwift */,
+				967E7AE62EFDC9840060F3D8 /* llama */,
 			);
 			productName = OLMoE.swift;
 			productReference = A0117FE82C990EAB00035007 /* OLMoE.swift.app */;
@@ -214,9 +214,9 @@
 			);
 			mainGroup = A0117FDF2C990EAB00035007;
 			packageReferences = (
-				A0117FFD2C990F5600035007 /* XCRemoteSwiftPackageReference "llama" */,
 				48952DEE2D4D69D400476373 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 				48779B132D80A17200C446E8 /* XCRemoteSwiftPackageReference "HighlightSwift" */,
+				967E7AE52EFDC9840060F3D8 /* XCLocalSwiftPackageReference "llama-spm" */,
 			);
 			productRefGroup = A0117FE92C990EAB00035007 /* Products */;
 			projectDirPath = "";
@@ -513,6 +513,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		967E7AE52EFDC9840060F3D8 /* XCLocalSwiftPackageReference "llama-spm" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "llama-spm";
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		48779B132D80A17200C446E8 /* XCRemoteSwiftPackageReference "HighlightSwift" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -530,14 +537,6 @@
 				minimumVersion = 2.4.1;
 			};
 		};
-		A0117FFD2C990F5600035007 /* XCRemoteSwiftPackageReference "llama" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ggerganov/llama.cpp/";
-			requirement = {
-				kind = revision;
-				revision = cc98896db858df7aa40d0e16a505883ef196a482;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -551,9 +550,8 @@
 			package = 48952DEE2D4D69D400476373 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
 			productName = MarkdownUI;
 		};
-		A0117FFE2C990F5600035007 /* llama */ = {
+		967E7AE62EFDC9840060F3D8 /* llama */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A0117FFD2C990F5600035007 /* XCRemoteSwiftPackageReference "llama" */;
 			productName = llama;
 		};
 /* End XCSwiftPackageProductDependency section */

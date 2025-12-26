@@ -128,10 +128,12 @@ open class LLM: ObservableObject {
         #if targetEnvironment(simulator)
             modelParams.n_gpu_layers = 0
         #endif
-        let model = llama_load_model_from_file(self.path, modelParams)!
+        guard let model = llama_model_load_from_file(self.path, modelParams) else {
+             fatalError("Failed to load model from \(self.path)")
+        }
         self.params = llama_context_default_params()
         let processorCount = Int32(ProcessInfo().processorCount)
-        self.maxTokenCount = Int(min(maxTokenCount, llama_n_ctx_train(model)))
+        self.maxTokenCount = Int(min(maxTokenCount, llama_model_n_ctx_train(model)))
         // self.params.seed = seed
         self.params.n_ctx = UInt32(self.maxTokenCount)
         self.params.n_batch = self.params.n_ctx
@@ -142,7 +144,13 @@ open class LLM: ObservableObject {
         self.temp = temp
         self.model = model
         self.history = history
-        self.totalTokenCount = Int(llama_n_vocab(model))
+        let vocab = llama_model_get_vocab(model)
+        if vocab != nil {
+            self.totalTokenCount = Int(llama_vocab_n_tokens(vocab))
+        } else {
+            print("Warning: Failed to retrieve vocab from model")
+            self.totalTokenCount = 0
+        }
         self.newlineToken = model.newLineToken
         self.stopSequence = stopSequence?.utf8CString
         self.stopSequenceLength = (self.stopSequence?.count ?? 1) - 1
@@ -161,7 +169,7 @@ open class LLM: ObservableObject {
     }
 
     deinit {
-        llama_free_model(self.model)
+        llama_model_free(self.model)
     }
 
     public convenience init(
@@ -364,24 +372,13 @@ open class LLM: ObservableObject {
     @InferenceActor
     private func trimKvCache() {
         let seq_id: Int32 = 0
-        let beginning: Int32 = 0
-        let middle = Int32(self.maxTokenCount / 2)
-
-        /// Remove the oldest half
-        llama_kv_cache_seq_rm(self.context.pointer, seq_id, beginning, middle)
-
-        /// Shift the newer half to the start
-        llama_kv_cache_seq_add(
-            self.context.pointer,
-            seq_id,
-            middle,
-            Int32(self.maxTokenCount), -middle
-        )
-
-        /// Update nPast
-        let kvCacheTokenCount: Int32 = llama_get_kv_cache_token_count(self.context.pointer)
-        self.nPast = kvCacheTokenCount
-        print("kv cache trimmed: llama_kv_cache(\(kvCacheTokenCount)    nPast(\(self.nPast))")
+        
+        // CRITICAL FIX: The logic below (shifting context) triggers an assertion failure
+        // on some devices/models (n_pos_per_embd != 1).
+        // For stability, we clear the context instead of crashing.
+        llama_memory_seq_rm(llama_get_memory(self.context.pointer), seq_id, 0, -1)
+        self.nPast = 0
+        print("Context full. KV cache cleared to prevent crash.")
     }
 
     private func getTestLoopbackResponse() -> AsyncStream<String> {
@@ -469,7 +466,7 @@ open class LLM: ObservableObject {
             let seq_id = Int32(0)
             let startIndex = self.nPast - self.inputTokenCount
             let endIndex = self.nPast
-            llama_kv_cache_seq_rm(self.context.pointer, seq_id, startIndex, endIndex)
+            llama_memory_seq_rm(llama_get_memory(self.context.pointer), seq_id, startIndex, endIndex)
         }
     }
 
@@ -535,7 +532,7 @@ extension LLM {
         }
 
         let beginningOfSequenceOffset: Int32 = 1
-        self.nPast = llama_get_kv_cache_token_count(self.context.pointer) + beginningOfSequenceOffset
+        self.nPast = (llama_memory_seq_pos_max(llama_get_memory(self.context.pointer), 0) + 1) + beginningOfSequenceOffset
     }
 }
 
