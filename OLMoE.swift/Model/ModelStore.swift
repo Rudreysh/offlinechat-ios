@@ -68,16 +68,26 @@ public final class ModelStore: ObservableObject {
     private func mergeDefaults(with stored: [AppModel]) -> [AppModel] {
         let defaults = Self.defaultModels()
         var merged: [String: AppModel] = Dictionary(uniqueKeysWithValues: defaults.map { ($0.id, $0) })
+        let allowedVisionIds = Set(defaults.filter { $0.kind == .vision }.map { $0.id })
         for model in stored {
+            if model.kind == .vision && !allowedVisionIds.contains(model.id) {
+                continue
+            }
             merged[model.id] = model
         }
         let defaultIds = Set(defaults.map { $0.id })
-        let custom = stored.filter { !defaultIds.contains($0.id) }
+        let custom = stored.filter { model in
+            guard !defaultIds.contains(model.id) else { return false }
+            if model.kind == .vision {
+                return allowedVisionIds.contains(model.id)
+            }
+            return true
+        }
         return defaults.map { merged[$0.id] ?? $0 } + custom
     }
 
     public static func defaultModels() -> [AppModel] {
-        [
+        let baseModels: [AppModel] = [
             AppModel(
                 id: "olmoe-latest",
                 displayName: "OLMoE (Default)",
@@ -90,109 +100,28 @@ public final class ModelStore: ObservableObject {
                 template: .olmoe,
                 source: .builtIn,
                 sizeHintMB: 4300
-            ),
-            AppModel(
-                id: "tinyllama-1.1b-chat",
-                displayName: "TinyLlama 1.1B (Chat)",
-                kind: .text,
-                ggufURL: "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf?download=true",
-                ggufFilename: "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
-                supportsVision: false,
-                supportsOCR: true,
-                defaultContext: 2048,
-                template: .llamaNoStop,
-                source: .builtIn,
-                sizeHintMB: 700
-            ),
-            AppModel(
-                id: "gemma-3-270m",
-                displayName: "Gemma 3 270M",
-                kind: .text,
-                ggufURL: "https://huggingface.co/ggml-org/gemma-3-270m-GGUF/resolve/main/gemma-3-270m-Q8_0.gguf?download=true",
-                ggufFilename: "gemma-3-270m-Q8_0.gguf",
-                supportsVision: false,
-                supportsOCR: true,
-                defaultContext: 2048,
-                template: .plain,
-                source: .builtIn,
-                sizeHintMB: 350
-            ),
-            AppModel(
-                id: "smolvlm2-2.2b",
-                displayName: "SmolVLM2 2.2B (Vision)",
-                kind: .vision,
-                ggufURL: "https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF/resolve/main/SmolVLM2-2.2B-Instruct-Q4_K_M.gguf?download=true",
-                mmprojURL: "https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF/resolve/main/mmproj-SmolVLM2-2.2B-Instruct-f16.gguf?download=true",
-                ggufFilename: "SmolVLM2-2.2B-Instruct-Q4_K_M.gguf",
-                mmprojFilename: "mmproj-SmolVLM2-2.2B-Instruct-f16.gguf",
-                supportsVision: true,
-                supportsOCR: true,
-                defaultContext: 8192,
-                template: .chatML,
-                source: .builtIn,
-                sizeHintMB: 2400
-            ),
-            AppModel(
-                id: "qwen2-vl-2b",
-                displayName: "Qwen2-VL 2B (Vision)",
-                kind: .vision,
-                ggufURL: "https://huggingface.co/ggml-org/Qwen2-VL-2B-Instruct-GGUF/resolve/main/Qwen2-VL-2B-Instruct-Q4_K_M.gguf?download=true",
-                mmprojURL: "https://huggingface.co/ggml-org/Qwen2-VL-2B-Instruct-GGUF/resolve/main/mmproj-Qwen2-VL-2B-Instruct-f16.gguf?download=true",
-                ggufFilename: "Qwen2-VL-2B-Instruct-Q4_K_M.gguf",
-                mmprojFilename: "mmproj-Qwen2-VL-2B-Instruct-f16.gguf",
-                supportsVision: true,
-                supportsOCR: true,
-                defaultContext: 8192,
-                template: .chatML,
-                source: .builtIn,
-                sizeHintMB: 2200
-            ),
-            AppModel(
-                id: "qwen2-vl-2b-q8-tensorblock",
-                displayName: "Qwen2-VL 2B (Vision, Q8_0)",
-                kind: .vision,
-                ggufURL: "https://huggingface.co/tensorblock/Qwen2-VL-2B-GGUF/resolve/main/Qwen2-VL-2B-Q8_0.gguf?download=true",
-                mmprojURL: nil,
-                ggufFilename: "Qwen2-VL-2B-Q8_0.gguf",
-                mmprojFilename: nil,
-                supportsVision: true,
-                supportsOCR: true,
-                defaultContext: 8192,
-                template: .chatML,
-                source: .builtIn,
-                sizeHintMB: 3600
-            ),
-            AppModel(
-                id: "qwen2.5-vl-3b",
-                displayName: "Qwen2.5-VL 3B (Vision)",
-                kind: .vision,
-                ggufURL: "https://huggingface.co/ggml-org/Qwen2.5-VL-3B-Instruct-GGUF/resolve/main/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf?download=true",
-                mmprojURL: "https://huggingface.co/ggml-org/Qwen2.5-VL-3B-Instruct-GGUF/resolve/main/mmproj-Qwen2.5-VL-3B-Instruct-f16.gguf?download=true",
-                ggufFilename: "Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf",
-                mmprojFilename: "mmproj-Qwen2.5-VL-3B-Instruct-f16.gguf",
-                supportsVision: true,
-                supportsOCR: true,
-                defaultContext: 8192,
-                template: .chatML,
-                source: .builtIn,
-                sizeHintMB: 3300
-            )
-            ,
-            AppModel(
-                id: "gemma-3-4b-it",
-                displayName: "Gemma 3 4B (Vision)",
-                kind: .vision,
-                ggufURL: "https://huggingface.co/ggml-org/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf?download=true",
-                mmprojURL: "https://huggingface.co/ggml-org/gemma-3-4b-it-GGUF/resolve/main/mmproj-model-f16.gguf?download=true",
-                ggufFilename: "gemma-3-4b-it-Q4_K_M.gguf",
-                mmprojFilename: "mmproj-model-f16.gguf",
-                supportsVision: true,
-                supportsOCR: true,
-                defaultContext: 8192,
-                template: .chatML,
-                source: .builtIn,
-                sizeHintMB: 2490
             )
         ]
+
+        let catalogModels: [AppModel] = ModelCatalog.builtIns.map { spec in
+            let template: ModelTemplateKind = spec.promptStyle == .gemma ? .gemma : .chatML
+            return AppModel(
+                id: spec.id,
+                displayName: spec.displayName,
+                kind: spec.kind == .vision ? .vision : .text,
+                ggufURL: spec.model.url.absoluteString,
+                mmprojURL: spec.mmproj?.url.absoluteString,
+                ggufFilename: spec.model.filename,
+                mmprojFilename: spec.mmproj?.filename,
+                supportsVision: spec.kind == .vision,
+                supportsOCR: true,
+                defaultContext: spec.kind == .vision ? 8192 : 4096,
+                template: template,
+                source: .builtIn,
+                sizeHintMB: spec.model.bytes.map { Int($0 / 1_000_000) }
+            )
+        }
+
+        return baseModels + catalogModels
     }
 }

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AF3C9D93C31B469F93E9EEF2 /* ModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65D10FA58C41457580D71B44 /* ModelCatalog.swift */; };
 		18636D3BC4FF43B08D21AA2E /* LLMError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9E7E91FC9A44CD8EC296C3 /* LLMError.swift */; };
 		884F9154DE614C3F94A19E11 /* OCRProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 395FD3948F35418287E897E4 /* OCRProcessor.swift */; };
 		BE83FF0834314341BB812C03 /* VisionPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9BFA41F9BE49A7BD2CB943 /* VisionPipeline.swift */; };
@@ -40,6 +41,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		65D10FA58C41457580D71B44 /* ModelCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelCatalog.swift; sourceTree = "<group>"; };
 		1B9E7E91FC9A44CD8EC296C3 /* LLMError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMError.swift; sourceTree = "<group>"; };
 		36B23F4916E04173A6F0F1ED /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		395FD3948F35418287E897E4 /* OCRProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRProcessor.swift; sourceTree = "<group>"; };
@@ -162,6 +164,7 @@
 				1B9E7E91FC9A44CD8EC296C3 /* LLMError.swift */,
 				489FD75B2CF13E4E0011E908 /* AttestManager.swift */,
 				A01180002C990F7600035007 /* LLM.swift */,
+				65D10FA58C41457580D71B44 /* ModelCatalog.swift */,
 				525AEA25E2FD43C381FA11A7 /* ModelDownloader.swift */,
 				79C19B33097D427792E8ECAD /* ModelStore.swift */,
 				B26FDB5D2CEAD5CB00E1D57C /* Model.swift */,
@@ -270,6 +273,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AF3C9D93C31B469F93E9EEF2 /* ModelCatalog.swift in Sources */,
 				FE0F87B3789E43149B588219 /* AppModel.swift in Sources */,
 				489FD75C2CF13E4E0011E908 /* AttestManager.swift in Sources */,
 				C3A629B441644B9181CF5ECC /* ChatAttachment.swift in Sources */,

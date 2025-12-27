@@ -72,7 +72,6 @@ struct BotView: View {
     let disclaimerHandlers: DisclaimerHandlers
     @State private var pendingAttachments: [ChatAttachment] = []
     @State private var selectedPhotos: [PhotosPickerItem] = []
-    @State private var composerMode: ComposerMode = .chat
     @State private var userAlertMessage: String?
 
     // Add new state for text sharing
@@ -94,16 +93,6 @@ struct BotView: View {
         bot.history.isEmpty && !isGenerating && bot.output.isEmpty
     }
 
-    private var availableComposerModes: [ComposerMode] {
-        var modes: [ComposerMode] = [.chat]
-        if model.supportsOCR {
-            modes.append(.ocr)
-        }
-        if model.supportsVision {
-            modes.insert(.vision, at: 1)
-        }
-        return modes
-    }
 
     init(_ bot: Bot, model: AppModel, showMetrics: Binding<Bool>, disclaimerHandlers: DisclaimerHandlers) {
         _bot = StateObject(wrappedValue: bot)
@@ -131,34 +120,13 @@ struct BotView: View {
         bot.history.append(Chat(role: .user, content: originalInput, attachments: pendingAttachments))
 
         Task {
-            let mode = composerMode
             let attachments = pendingAttachments
             pendingAttachments.removeAll()
 
-            if (mode == .vision || mode == .ocr) && attachments.isEmpty {
-                await MainActor.run {
-                    userAlertMessage = "Attach an image or document first."
-                    isGenerating = false
-                    stopSubmitted = false
-                }
-                return
-            }
-
-            if mode == .ocr {
-                let ocrText = await runOCR(for: attachments)
-                await MainActor.run {
-                    bot.history.append(Chat(role: .bot, content: ocrText.isEmpty ? "No text found." : ocrText))
-                    bot.setOutput(to: "")
-                    isGenerating = false
-                    stopSubmitted = false
-                }
-                return
-            }
-
-            if mode == .vision, model.supportsVision {
-                if !model.isVisionReady {
+            if !attachments.isEmpty {
+                if !model.supportsVision || !model.isVisionReady {
                     await MainActor.run {
-                        let message = LLMError.missingProjector.localizedDescription
+                        let message = "Attachments require a vision model. Please select a downloaded vision model."
                         userAlertMessage = message
                         bot.history.append(Chat(role: .bot, content: message))
                         isGenerating = false
@@ -168,7 +136,7 @@ struct BotView: View {
                 }
                 if !llama_mtmd_is_available() {
                     await MainActor.run {
-                        let message = "Vision runtime is not available. Install a llama.cpp build with mtmd support or use OCR mode."
+                        let message = "Vision runtime is not available. Install a llama.cpp build with mtmd support."
                         userAlertMessage = message
                         bot.history.append(Chat(role: .bot, content: message))
                         isGenerating = false
@@ -176,16 +144,9 @@ struct BotView: View {
                     }
                     return
                 }
-            } else if mode == .vision {
-                await MainActor.run {
-                    userAlertMessage = "Selected model does not support vision."
-                    isGenerating = false
-                    stopSubmitted = false
-                }
-                return
             }
 
-            let prompt = await buildPrompt(input: originalInput, mode: mode, attachments: attachments)
+            let prompt = await buildPrompt(input: originalInput, attachments: attachments)
             await bot.respond(to: prompt)
 
             await MainActor.run {
@@ -289,74 +250,10 @@ struct BotView: View {
         }
     }
 
-    private func runOCR(for attachments: [ChatAttachment]) async -> String {
-        var output: [String] = []
-        for attachment in attachments {
-            switch attachment.kind {
-            case .image:
-                if let image = attachment.image {
-                    let text = await OCRProcessor.recognizeText(in: image)
-                    if !text.isEmpty {
-                        output.append(text)
-                    }
-                }
-            case .document:
-                let text = await OCRProcessor.recognizeText(in: attachment.url)
-                if !text.isEmpty {
-                    output.append(text)
-                }
-            }
-        }
-        return output.joined(separator: "\n")
-    }
-
-    private func buildPrompt(input: String, mode: ComposerMode, attachments: [ChatAttachment]) async -> String {
+    private func buildPrompt(input: String, attachments: [ChatAttachment]) async -> String {
         guard !attachments.isEmpty else { return input }
-
-        if mode == .vision {
-            if llama_mtmd_is_available() {
-                print("Vision runtime available. Using image marker.")
-                return "<image>\n\(input)"
-            }
-            print("Vision runtime not available. Falling back to OCR context.")
-            let context = await attachmentContext(from: attachments)
-            return "Attached files (extracted context):\n\(context)\n\n\(input)"
-        }
-
-        if mode == .ocr {
-            let context = await attachmentContext(from: attachments)
-            return "Extracted text:\n\(context)\n\n\(input)"
-        }
-
-        return input
-    }
-
-    private func attachmentContext(from attachments: [ChatAttachment]) async -> String {
-        var lines: [String] = []
-        for attachment in attachments {
-            switch attachment.kind {
-            case .image:
-                let label = "[Image: \(attachment.filename)]"
-                var text = ""
-                if let image = attachment.image {
-                    text = await OCRProcessor.recognizeText(in: image)
-                }
-                if text.isEmpty {
-                    lines.append("\(label) (no OCR/labels available)")
-                } else {
-                    lines.append("\(label)\n\(text)")
-                }
-            case .document:
-                let label = "[Document: \(attachment.filename)]"
-                let text = await OCRProcessor.recognizeText(in: attachment.url)
-                if text.isEmpty {
-                    lines.append("\(label) (no OCR available)")
-                } else {
-                    lines.append("\(label)\n\(text)")
-                }
-            }
-        }
-        return lines.joined(separator: "\n\n")
+        print("Vision runtime available. Using image marker.")
+        return "<image>\n\(input)"
     }
 
     func shareConversation() {
@@ -545,10 +442,9 @@ struct BotView: View {
                     isGenerating: $isGenerating,
                     stopSubmitted: $stopSubmitted,
                     selectedPhotos: $selectedPhotos,
-                    composerMode: $composerMode,
                     isTextEditorFocused: $isTextEditorFocused,
                     attachments: pendingAttachments,
-                    availableModes: availableComposerModes,
+                    attachmentsEnabled: true,
                     isInputDisabled: isInputDisabled,
                     hasValidInput: hasValidInput,
                     respond: respond,

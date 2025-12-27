@@ -14,10 +14,9 @@ struct MessageInputView: View {
     @Binding var isGenerating: Bool
     @Binding var stopSubmitted: Bool
     @Binding var selectedPhotos: [PhotosPickerItem]
-    @Binding var composerMode: ComposerMode
     @FocusState.Binding var isTextEditorFocused: Bool
     let attachments: [ChatAttachment]
-    let availableModes: [ComposerMode]
+    let attachmentsEnabled: Bool
     let isInputDisabled: Bool
     let hasValidInput: Bool
     let respond: () -> Void
@@ -39,6 +38,7 @@ struct MessageInputView: View {
                         Image(systemName: "photo.on.rectangle.angled")
                             .font(.system(size: 18))
                     }
+                    .disabled(!attachmentsEnabled)
 
                     Button {
                         isFileImporterPresented = true
@@ -46,9 +46,11 @@ struct MessageInputView: View {
                         Image(systemName: "paperclip")
                             .font(.system(size: 18))
                     }
+                    .disabled(!attachmentsEnabled)
                 }
                 .padding(.top, 16)
                 .foregroundColor(Color("TextColor"))
+                .opacity(attachmentsEnabled ? 1 : 0.4)
 
                 TextField(
                     UIDevice.current.userInterfaceIdiom == .mac ?
@@ -106,14 +108,6 @@ struct MessageInputView: View {
                 .font(.system(size: 24))
             }
 
-            if !availableModes.isEmpty {
-                Picker("Mode", selection: $composerMode) {
-                    ForEach(availableModes) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
         }
         .padding([.leading, .trailing], 20)
         .padding(.vertical, 12)

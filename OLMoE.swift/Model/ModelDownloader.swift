@@ -29,6 +29,7 @@ public final class ModelDownloader: ObservableObject {
 
     @Published public private(set) var states: [String: ModelDownloadState] = [:]
     private var activeTasks: [String: URLSessionDownloadTask] = [:]
+    private var activeObservations: [String: NSKeyValueObservation] = [:]
     private let session: URLSession = .shared
 
     public func state(for model: AppModel) -> ModelDownloadState {
@@ -70,6 +71,7 @@ public final class ModelDownloader: ObservableObject {
     public func cancelDownload(for model: AppModel) {
         activeTasks[model.id]?.cancel()
         activeTasks[model.id] = nil
+        activeObservations[model.id] = nil
         setState(for: model.id, isDownloading: false, progress: 0, error: "Download canceled.")
     }
 
@@ -114,9 +116,14 @@ public final class ModelDownloader: ObservableObject {
         }
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
 
+        setState(for: modelID, isDownloading: true, progress: baseProgress)
+
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let task = session.downloadTask(with: url) { tempURL, response, error in
-                defer { self.activeTasks[modelID] = nil }
+                defer {
+                    self.activeTasks[modelID] = nil
+                    self.activeObservations[modelID] = nil
+                }
                 if let error {
                     return continuation.resume(throwing: error)
                 }
@@ -141,7 +148,7 @@ public final class ModelDownloader: ObservableObject {
                     self.setState(for: modelID, isDownloading: true, progress: overall)
                 }
             }
-            _ = observation
+            self.activeObservations[modelID] = observation
             task.resume()
         }
     }
