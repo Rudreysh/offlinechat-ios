@@ -18,10 +18,10 @@ if [ -z "${BIN_PATH}" ]; then
 fi
 
 echo "Checking mtmd symbols in: ${BIN_PATH}"
-if nm -gU "${BIN_PATH}" 2>/dev/null | rg -q "mtmd_"; then
-  echo "mtmd symbols found in binary."
+if nm -gU "${BIN_PATH}" 2>/dev/null | rg -q "mtmd_default_marker|mtmd_init_from_file"; then
+  echo "mtmd available: YES"
 else
-  echo "mtmd symbols NOT found in binary."
+  echo "mtmd available: NO"
 fi
 
 if [ -n "${HEADER_PATH}" ]; then

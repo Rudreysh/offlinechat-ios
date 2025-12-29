@@ -1,6 +1,6 @@
 import Foundation
 import UIKit
-import llama_mtmd
+// mtmd bridge is provided via MTMDShim.swift
 
 enum VisionPipeline {
     static func isAvailable() -> Bool {

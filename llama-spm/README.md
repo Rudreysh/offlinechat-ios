@@ -44,6 +44,14 @@ OLMoE.swift/llama-spm/Frameworks/llama.xcframework
 
 Then clean and rebuild the iOS app.
 
+You can also run:
+
+```
+./scripts/build_llama_mtmd_xcframework.sh
+```
+
+from `OLMoE.swift/` to build and replace in one step.
+
 ## Adding vision models
 
 For each vision model entry in the app model catalog:

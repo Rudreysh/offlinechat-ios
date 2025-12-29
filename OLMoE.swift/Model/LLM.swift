@@ -1,5 +1,40 @@
 import Foundation
+import UIKit
 import llama
+// mtmd bridge is provided via MTMDBridge.swift
+
+// MARK: - mtmd C-API bridge (fallback declarations)
+
+typealias mtmd_context = OpaquePointer
+typealias mtmd_bitmap = OpaquePointer
+typealias mtmd_input_chunks = OpaquePointer
+
+@_silgen_name("llama_mtmd_is_available")
+func llama_mtmd_is_available() -> Bool
+
+@_silgen_name("llama_mtmd_default_marker")
+func llama_mtmd_default_marker() -> UnsafePointer<CChar>
+
+@_silgen_name("llama_mtmd_create_from_file")
+func llama_mtmd_create_from_file(_ mmprojPath: UnsafePointer<CChar>, _ model: OpaquePointer?, _ nThreads: Int32) -> OpaquePointer?
+
+@_silgen_name("llama_mtmd_destroy")
+func llama_mtmd_destroy(_ ctx: OpaquePointer?)
+
+@_silgen_name("llama_mtmd_bitmap_create_rgb")
+func llama_mtmd_bitmap_create_rgb(_ data: UnsafePointer<UInt8>?, _ width: UInt32, _ height: UInt32) -> OpaquePointer?
+
+@_silgen_name("llama_mtmd_bitmap_destroy")
+func llama_mtmd_bitmap_destroy(_ bitmap: OpaquePointer?)
+
+@_silgen_name("llama_mtmd_tokenize_prompt_single")
+func llama_mtmd_tokenize_prompt_single(_ ctx: OpaquePointer?, _ prompt: UnsafePointer<CChar>, _ addSpecial: Bool, _ parseSpecial: Bool, _ bitmap: OpaquePointer?) -> OpaquePointer?
+
+@_silgen_name("llama_mtmd_eval_chunks")
+func llama_mtmd_eval_chunks(_ ctx: OpaquePointer?, _ lctx: OpaquePointer?, _ chunks: OpaquePointer?, _ nPast: llama_pos, _ seqId: llama_seq_id, _ nBatch: Int32, _ logitsLast: Bool, _ newPast: UnsafeMutablePointer<llama_pos>?) -> Int32
+
+@_silgen_name("llama_mtmd_chunks_free")
+func llama_mtmd_chunks_free(_ chunks: OpaquePointer?)
 
 
 public typealias Token = llama_token
@@ -114,6 +149,9 @@ open class LLM: ObservableObject {
     private var updateProgress: (Double) -> Void = { _ in }
     private var nPast: Int32 = 0 // Track number of tokens processed
     private var inputTokenCount: Int32 = 0
+    private var sampleFromLastLogits = false
+    private var mtmdContext: OpaquePointer?
+    private var mtmdContextPath: String?
     private let filteredTokenFragments = [
         "<|im_start|>", "<|im_end|>", "<|endoftext|>", "</s>",
         "<im_start", "<im_end", "<image", "<|image|>"
@@ -175,6 +213,9 @@ open class LLM: ObservableObject {
     }
 
     deinit {
+        if let mtmdContext {
+            llama_mtmd_destroy(mtmdContext)
+        }
         llama_model_free(self.model)
     }
 
@@ -238,7 +279,11 @@ open class LLM: ObservableObject {
         }
 
         /// Sample the next token with a valid context
-        let token = llama_sampler_sample(sampler, context.pointer, self.batch.n_tokens - 1) // Use batch token count for correct context
+        let logitsIndex = sampleFromLastLogits ? -1 : (self.batch.n_tokens - 1)
+        let token = llama_sampler_sample(sampler, context.pointer, logitsIndex)
+        if sampleFromLastLogits {
+            sampleFromLastLogits = false
+        }
 
         metrics.recordToken()
 
@@ -449,6 +494,31 @@ open class LLM: ObservableObject {
         await inferenceTask?.value
     }
 
+    @InferenceActor
+    private func performInferenceWithStream(_ input: String, responseStream: AsyncStream<String>, makeOutputFrom: @escaping (AsyncStream<String>) async -> String) async {
+        self.inferenceTask?.cancel()
+        self.inferenceTask = Task { [weak self] in
+            guard let self = self else { return }
+
+            self.input = input
+            let output = (await makeOutputFrom(responseStream)).trimmingCharacters(in: .whitespacesAndNewlines)
+
+            await MainActor.run {
+                if !output.isEmpty {
+                    self.history.append(Chat(role: .bot, content: output))
+                }
+                self.postprocess(output)
+            }
+
+            self.inputTokenCount = 0
+            if FeatureFlags.useLLMCaching {
+                self.savedState = saveState()
+            }
+        }
+
+        await inferenceTask?.value
+    }
+
     /// Generates a response to the given input
     /// - Parameter input: User input text to respond to
     /// - Note: Updates history and output property with generated response
@@ -476,6 +546,46 @@ open class LLM: ObservableObject {
         }
     }
 
+    open func respond(to input: String, attachments: [ChatAttachment], mmprojPath: String?) async {
+        guard !attachments.isEmpty else {
+            await respond(to: input)
+            return
+        }
+        guard let mmprojPath else {
+            await respond(to: input)
+            return
+        }
+        guard llama_mtmd_is_available() else {
+            await respond(to: input)
+            return
+        }
+
+        if let savedState = FeatureFlags.useLLMCaching ? self.savedState : nil {
+            restoreState(from: savedState)
+        }
+
+        await setOutput(to: "")
+        let prepared = prepareMtmdPrompt(input: input, attachments: attachments, mmprojPath: mmprojPath)
+        guard prepared else {
+            update(nil)
+            await setOutput(to: "Unable to process image input.")
+            return
+        }
+
+        let stream = await generateResponseStreamFromMtmd()
+        await performInferenceWithStream(input, responseStream: stream) { [self] response in
+            for await responseDelta in response {
+                let sanitized = sanitizeModelOutput(responseDelta)
+                update(sanitized)
+                await setOutput(to: sanitizeModelOutput(output + sanitized))
+            }
+            update(nil)
+            let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            await setOutput(to: trimmedOutput.isEmpty ? "..." : trimmedOutput)
+            return output
+        }
+    }
+
     private func sanitizeModelOutput(_ text: String) -> String {
         let patterns = [
             "<|im_start", "<|im_end", "<im_start", "<im_end", "<image", "<|image", "<|vision"
@@ -485,6 +595,139 @@ open class LLM: ObservableObject {
             sanitized = sanitized.replacingOccurrences(of: pattern, with: "")
         }
         return sanitized
+    }
+
+    private func prepareMtmdPrompt(input: String, attachments: [ChatAttachment], mmprojPath: String) -> Bool {
+        guard let context else {
+            self.context = Context(model, params)
+            return prepareMtmdPrompt(input: input, attachments: attachments, mmprojPath: mmprojPath)
+        }
+
+        if mtmdContext == nil || mtmdContextPath != mmprojPath {
+            mtmdContext = llama_mtmd_create_from_file(mmprojPath, model, Int32(params.n_threads))
+            mtmdContextPath = mmprojPath
+        }
+        guard let mtmdContext else {
+            return false
+        }
+
+        let images = attachments.compactMap { $0.image }
+        guard !images.isEmpty else {
+            return false
+        }
+
+        let promptString = preprocess(input, history, self)
+
+        let addSpecial = savedState == nil
+
+        guard let firstImage = images.first, let rgb = imageRGBData(firstImage) else {
+            return false
+        }
+
+        var bitmapPtr: OpaquePointer?
+        rgb.data.withUnsafeBytes { buffer in
+            let ptr = buffer.bindMemory(to: UInt8.self).baseAddress
+            bitmapPtr = llama_mtmd_bitmap_create_rgb(ptr, UInt32(rgb.width), UInt32(rgb.height))
+        }
+
+        guard let bitmap = bitmapPtr else {
+            return false
+        }
+
+        defer {
+            llama_mtmd_bitmap_destroy(bitmap)
+        }
+
+        var chunks: OpaquePointer? = nil
+        promptString.withCString { promptPtr in
+            chunks = llama_mtmd_tokenize_prompt_single(mtmdContext, promptPtr, addSpecial, true, bitmap)
+        }
+        guard let chunks else {
+            return false
+        }
+        defer {
+            llama_mtmd_chunks_free(chunks)
+        }
+
+        var newPast: llama_pos = 0
+        let evalResult = llama_mtmd_eval_chunks(
+            mtmdContext,
+            context.pointer,
+            chunks,
+            nPast,
+            0,
+            Int32(params.n_batch),
+            true,
+            &newPast
+        )
+
+        if evalResult != 0 {
+            return false
+        }
+
+        nPast = Int32(newPast)
+        inputTokenCount = 0
+        sampleFromLastLogits = true
+        batch.clear()
+        return true
+    }
+
+    private func imageRGBData(_ image: UIImage) -> (data: Data, width: Int, height: Int)? {
+        guard let cgImage = image.cgImage else { return nil }
+        let width = cgImage.width
+        let height = cgImage.height
+        let bytesPerPixel = 4
+        let bytesPerRow = bytesPerPixel * width
+        var rgba = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
+        guard let context = CGContext(
+            data: &rgba,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return nil
+        }
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        var rgb = [UInt8](repeating: 0, count: width * height * 3)
+        var rgbIndex = 0
+        for i in stride(from: 0, to: rgba.count, by: 4) {
+            rgb[rgbIndex] = rgba[i]
+            rgb[rgbIndex + 1] = rgba[i + 1]
+            rgb[rgbIndex + 2] = rgba[i + 2]
+            rgbIndex += 3
+        }
+        return (Data(rgb), width, height)
+    }
+
+    @InferenceActor
+    private func generateResponseStreamFromMtmd() -> AsyncStream<String> {
+        AsyncStream<String> { output in
+            Task { [weak self] in
+                guard let self = self else { return output.finish() }
+                guard self.inferenceTask != nil else { return output.finish() }
+
+                defer {
+                    if !FeatureFlags.useLLMCaching {
+                        self.context = nil
+                    }
+                }
+
+                metrics.start()
+                var token = await self.predictNextToken()
+                while self.emitDecoded(token: token, to: output) {
+                    if self.nPast >= self.maxTokenCount {
+                        self.trimKvCache()
+                    }
+                    token = await self.predictNextToken()
+                }
+                metrics.stop()
+                output.finish()
+            }
+        }
     }
 
     /// If the model fails to produce a response (empty output), remove the last user input’s tokens

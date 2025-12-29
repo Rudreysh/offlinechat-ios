@@ -1,5 +1,5 @@
 import SwiftUI
-import llama_mtmd
+// mtmd bridge is provided via MTMDShim.swift
 
 struct DiagnosticsView: View {
     @ObservedObject var modelStore: ModelStore

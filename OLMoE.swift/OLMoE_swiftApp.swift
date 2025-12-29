@@ -16,6 +16,14 @@ struct OLMoE_swiftApp: App {
 }
 
 class AppDelegate: NSObject, UIApplicationDelegate {
+    override init() {
+        super.init()
+#if targetEnvironment(simulator)
+        // Disable Metal on simulator to avoid ggml_metal residency set crash.
+        setenv("GGML_METAL_DISABLE", "1", 1)
+#endif
+    }
+
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
         print("Background URL session: \(identifier)")
         completionHandler()

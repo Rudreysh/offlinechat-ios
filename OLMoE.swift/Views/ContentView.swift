@@ -9,7 +9,7 @@
 import SwiftUI
 import os
 import PhotosUI
-import llama_mtmd
+// mtmd bridge is provided via MTMDShim.swift
 
 class Bot: LLM {
     static let defaultModelFileURL = URL.modelsDirectory.appendingPathComponent(AppConstants.Model.filename).appendingPathExtension("gguf")
@@ -147,7 +147,7 @@ struct BotView: View {
             }
 
             let prompt = await buildPrompt(input: originalInput, attachments: attachments)
-            await bot.respond(to: prompt)
+            await bot.respond(to: prompt, attachments: attachments, mmprojPath: model.localMMProjURL?.path)
 
             await MainActor.run {
                 bot.setOutput(to: "")
@@ -252,8 +252,11 @@ struct BotView: View {
 
     private func buildPrompt(input: String, attachments: [ChatAttachment]) async -> String {
         guard !attachments.isEmpty else { return input }
-        print("Vision runtime available. Using image marker.")
-        return "<image>\n\(input)"
+
+        let marker = String(cString: llama_mtmd_default_marker())
+        let hasImage = attachments.contains { $0.kind == .image }
+        guard hasImage else { return input }
+        return marker + input
     }
 
     func shareConversation() {
